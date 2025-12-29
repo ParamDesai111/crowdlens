@@ -19,6 +19,7 @@ env:
   APP_NAME: ingestion
   IMAGE_NAME: ingestion
   DOCKERFILE_PATH: ingestion/Dockerfile
+  BUILD_CONTEXT: ingestion
 
 jobs:
   build-and-deploy:
@@ -42,6 +43,7 @@ jobs:
           containerAppName: ${{ env.APP_NAME }}
           containerAppEnvironment: ${{ env.CONTAINERAPPS_ENVIRONMENT }}
           dockerfilePath: ${{ env.DOCKERFILE_PATH }}
+          buildContextPath: ${{ env.BUILD_CONTEXT }}
           imageToBuild: ${{ env.AZURE_CONTAINER_REGISTRY }}/${{ env.IMAGE_NAME }}:${{ github.sha }}
           environmentVariables: |
             PLACE_ID=demo-place
