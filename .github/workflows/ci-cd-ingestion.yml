@@ -2,7 +2,7 @@ name: build-and-deploy-ingestion
 
 on:
   push:
-    branches: [ main ]
+    branches: [ master ]
     paths:
       - ingestion/**
       - .github/workflows/ci-cd-ingestion.yml
