@@ -9,8 +9,8 @@ from azure.storage.blob import BlobServiceClient
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
 # Get helpers
-from ingestion.app.helpers.blob_service import BlobServiceHelper
-from ingestion.app.helpers.service_bus import ServiceBusHelper
+from helpers.blob_service import BlobServiceHelper
+from helpers.service_bus import ServiceBusHelper
 
 def main():
     print("[ingestion] Ingestion app is running")
