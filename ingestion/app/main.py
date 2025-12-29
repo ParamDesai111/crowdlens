@@ -4,7 +4,7 @@ import sys
 import time
 from datetime import datetime, timezone
 
-from azure.identity import DefaultAzureCredential
+from azure.identity import DefaultAzureCredential, ManagedIdentityCredential
 from azure.storage.blob import BlobServiceClient
 from azure.servicebus import ServiceBusClient, ServiceBusMessage
 
@@ -18,7 +18,8 @@ def main():
     # Inputs for the stub
     place_id = os.getenv("PLACE_ID", "demo-place")
 
-    credential = DefaultAzureCredential()
+    # credential = DefaultAzureCredential()
+    credential = ManagedIdentityCredential(client_id=os.getenv("AZURE_CLIENT_ID")) if os.getenv("AZURE_CLIENT_ID") else DefaultAzureCredential()
 
     # Blob Service Operations
     blob_helper = BlobServiceHelper(
@@ -31,7 +32,7 @@ def main():
     # Service Bus Operations
     service_bus_helper = ServiceBusHelper(
         service_bus_namespace="SB_NAMESPACE",
-        queue_name="SB_QUEUE_INGEST"
+        queue_name="SB_QUEUE_PROCESS"
     )
     sb_client, sb_sender = service_bus_helper.build_service_bus_sender(credential)
     
