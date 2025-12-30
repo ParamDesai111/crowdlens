@@ -58,37 +58,35 @@ class IngestionFunctions:
     def run_search_and_fetch(self, msg: dict):
         query = msg.get("query")
         limit = int(msg.get("limit", 10))
-        ll = msg.get("ll") # Optional latitude,longitude
+        ll = msg.get("ll")
         max_reviews = int(msg.get("max_reviews", 40))
-        sb_client, sb_sender = self.service_bus_helper.build_service_bus_sender(self.credential)
 
-        # Search top places
-        places = self.serp.get_place(query=query, ll=ll, limit=limit)
+        places = self.serp.get_place(query=query, ll=ll, limit=limit) or []
 
-        # Write search results to blob
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
         search_key = f"search/{day}/{self.slugify(query)}/search_results.json"
-
         blob_name = self.write_json(search_key, {"query": query, "results": places})
-        print(f"[ingestion func] Wrote search results to blob: {blob_name} and {search_key} with {len(places) if places else 0} places")
+        print(f"[ingestion func] Wrote search results to blob: {blob_name} with {len(places)} places")
 
-        # Loop each place to get reviews
+        sb_client, sb_sender = self.service_bus_helper.build_service_bus_sender(self.credential)
         try:
             for idx, place in enumerate(places, 1):
                 pid = place.get("place_id")
+                name = place.get("name") or "unknown"
+                print(f"[ingestion func] Processing place {idx}/{len(places)}: {name} (place_id: {pid})")
                 if not pid:
-                    print(f"[ingestion func] Skipping place without place_id: {place}")
+                    print("[ingestion func] Skipping place without place_id")
                     continue
 
                 base = f"review/{day}/{pid}/"
                 meta_blob = base + "metadata.json"
                 self.write_json(meta_blob, place)
 
-                # Now get reviews in chunks
                 reviews = self.serp.fetch_reviews(place_id=pid, max_reviews=max_reviews)
+                print(f"[ingestion func] Fetched {len(reviews)} reviews for place_id: {pid} and name: {name}")
+
                 blob_paths = [meta_blob]
                 chunk = 200
-
                 for i in range(0, len(reviews), chunk):
                     part = reviews[i:i+chunk]
                     path = base + f"reviews-{i//chunk + 1:04d}.json"
@@ -97,7 +95,6 @@ class IngestionFunctions:
 
                 print(f"[ingestion func] Fetched and wrote {len(reviews)} reviews for place_id: {pid} in {len(blob_paths)} blobs")
 
-                # Send message to Service Bus for processing
                 payload = {
                     "place_id": pid,
                     "place_name": place.get("name"),
@@ -106,16 +103,18 @@ class IngestionFunctions:
                     "review_count": len(reviews),
                     "source": "serpapi-google-maps",
                     "query": query,
-                    "rank": idx
+                    "rank": idx,
                 }
+
                 try:
-                    msg = ServiceBusMessage(json.dumps(payload))
-                    with sb_sender:
-                        sb_sender.send_messages(msg)
-                    print(f"[ingestion func] Sent Service Bus message for place_id: {pid} with payload: {json.dumps(payload)}")
-                except Exception as e:
-                    print(f"[ingestion func] Error sending service bus message for place_id: {pid}: {e}", file=sys.stderr)
+                    sb_sender.send_messages(ServiceBusMessage(json.dumps(payload)))
+                    print(f"[ingestion func] Sent Service Bus message for place_id: {pid}")
+                except Exception as send_err:
+                    print(f"[ingestion func] Error sending service bus message for place_id: {pid}: {send_err}", file=sys.stderr)
         finally:
-            sb_sender.close()
-            sb_client.close()
-            print(f"[service bus helper] Error closing service bus client: {e}", file=sys.stderr)
+            try:
+                sb_sender.close()
+                sb_client.close()
+                print("[ingestion func] Closed service bus client")
+            except Exception as close_err:
+                print(f"[ingestion func] Error closing service bus client: {close_err}", file=sys.stderr)
