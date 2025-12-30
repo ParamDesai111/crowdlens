@@ -66,54 +66,56 @@ class IngestionFunctions:
         places = self.serp.get_place(query=query, ll=ll, limit=limit)
 
         # Write search results to blob
-        day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        search_key = f"search/{self.slugify(query)}/{day}/search_results.json"
+        day = datetime.now(timezone.utc).strftime("%Y-%m-%d-%H%M%S")
+        search_key = f"search/{day}/{self.slugify(query)}/search_results.json"
 
         blob_name = self.write_json(search_key, {"query": query, "results": places})
         print(f"[ingestion func] Wrote search results to blob: {blob_name} and {search_key} with {len(places) if places else 0} places")
 
         # Loop each place to get reviews
-        for idx, place in enumerate(places, 1):
-            pid = place.get("place_id")
-            if not pid:
-                print(f"[ingestion func] Skipping place without place_id: {place}")
-                continue
+        try:
+            for idx, place in enumerate(places, 1):
+                pid = place.get("place_id")
+                if not pid:
+                    print(f"[ingestion func] Skipping place without place_id: {place}")
+                    continue
 
-            base = f"raw/{pid}/{day}/"
-            meta_blob = base + "metadata.json"
-            self.write_json(meta_blob, place)
+                base = f"review/{day}/{pid}/"
+                meta_blob = base + "metadata.json"
+                self.write_json(meta_blob, place)
 
-            # Now get reviews in chunks
-            reviews = self.serp.fetch_reviews(place_id=pid, max_reviews=max_reviews)
-            blob_paths = [meta_blob]
-            chunk = 200
+                # Now get reviews in chunks
+                reviews = self.serp.fetch_reviews(place_id=pid, max_reviews=max_reviews)
+                blob_paths = [meta_blob]
+                chunk = 200
 
-            for i in range(0, len(reviews), chunk):
-                part = reviews[i:i+chunk]
-                path = base + f"reviews-{i//chunk + 1:04d}.json"
-                self.write_json(path, part)
-                blob_paths.append(path)
+                for i in range(0, len(reviews), chunk):
+                    part = reviews[i:i+chunk]
+                    path = base + f"reviews-{i//chunk + 1:04d}.json"
+                    self.write_json(path, part)
+                    blob_paths.append(path)
 
-            print(f"[ingestion func] Fetched and wrote {len(reviews)} reviews for place_id: {pid} in {len(blob_paths)} blobs")
+                print(f"[ingestion func] Fetched and wrote {len(reviews)} reviews for place_id: {pid} in {len(blob_paths)} blobs")
 
-            # Send message to Service Bus for processing
-            payload = {
-                "place_id": pid,
-                "place_name": place.get("name"),
-                "blob_paths": blob_paths,
-                "fetch_ts": int(datetime.now(timezone.utc).timestamp()),
-                "review_count": len(reviews),
-                "source": "serpapi-google-maps",
-                "query": query,
-                "rank": idx
-            }
-            try:
-                msg = ServiceBusMessage(json.dumps(payload))
-                with sb_sender:
-                    sb_sender.send_messages(msg)
-                print(f"[ingestion func] Sent Service Bus message for place_id: {pid} with payload: {json.dumps(payload)}")
-            except Exception as e:
-                print(f"[ingestion func] Error sending service bus message for place_id: {pid}: {e}", file=sys.stderr)
-
-        sb_client.close()
-        print(f"[service bus helper] Error closing service bus client: {e}", file=sys.stderr)
+                # Send message to Service Bus for processing
+                payload = {
+                    "place_id": pid,
+                    "place_name": place.get("name"),
+                    "blob_paths": blob_paths,
+                    "fetch_ts": int(datetime.now(timezone.utc).timestamp()),
+                    "review_count": len(reviews),
+                    "source": "serpapi-google-maps",
+                    "query": query,
+                    "rank": idx
+                }
+                try:
+                    msg = ServiceBusMessage(json.dumps(payload))
+                    with sb_sender:
+                        sb_sender.send_messages(msg)
+                    print(f"[ingestion func] Sent Service Bus message for place_id: {pid} with payload: {json.dumps(payload)}")
+                except Exception as e:
+                    print(f"[ingestion func] Error sending service bus message for place_id: {pid}: {e}", file=sys.stderr)
+        finally:
+            sb_sender.close()
+            sb_client.close()
+            print(f"[service bus helper] Error closing service bus client: {e}", file=sys.stderr)

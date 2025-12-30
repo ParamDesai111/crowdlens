@@ -23,12 +23,12 @@ def main():
         sys.exit(2)
 
     msg = {
-        "query": os.getenv("QUERY", "coffee"),
+        "query": os.getenv("QUERY", "ramen"),
         "limit": int(os.getenv("LIMIT", "10")),
         "max_reviews": int(os.getenv("MAX_REVIEWS", "40")),
         "lang": os.getenv("HL", "en"),
         "country": os.getenv("GL", "ca"),
-        "ll": os.getenv("LL")  # optional
+        "ll": os.getenv("LL", "@45.37704849243164,-75.6755599975586,14z")  # optional
     }
     ingestion_functions = IngestionFunctions(hl=msg["lang"], gl=msg["country"])
     ingestion_functions.run_search_and_fetch(msg)
