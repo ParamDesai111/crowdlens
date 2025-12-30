@@ -25,7 +25,7 @@ def main():
     msg = {
         "query": os.getenv("QUERY", "coffee"),
         "limit": int(os.getenv("LIMIT", "10")),
-        "max_reviews": int(os.getenv("MAX_REVIEWS", "120")),
+        "max_reviews": int(os.getenv("MAX_REVIEWS", "40")),
         "lang": os.getenv("HL", "en"),
         "country": os.getenv("GL", "ca"),
         "ll": os.getenv("LL")  # optional

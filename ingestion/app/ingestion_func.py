@@ -27,9 +27,14 @@ class IngestionFunctions:
             service_bus_namespace="SB_NAMESPACE",
             queue_name="SB_QUEUE_PROCESS"
         )
+        
+        api_key = os.getenv("SERP_API_KEY", "")
+        if not api_key:
+            print("[ingestion func] Missing SERP_API_KEY environment variable", file=sys.stderr)
+            raise ValueError("Missing SERP_API_KEY environment variable")
 
         self.serp = SerpApiClient(
-            api_key=os.getenv("SERP_API_KEY", ""),
+            api_key=api_key,
             hl=hl,
             gl=gl
         )
@@ -54,6 +59,7 @@ class IngestionFunctions:
         query = msg.get("query")
         limit = int(msg.get("limit", 10))
         ll = msg.get("ll") # Optional latitude,longitude
+        max_reviews = int(msg.get("max_reviews", 40))
         sb_client, sb_sender = self.service_bus_helper.build_service_bus_sender(self.credential)
 
         # Search top places
@@ -63,8 +69,8 @@ class IngestionFunctions:
         day = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         search_key = f"search/{self.slugify(query)}/{day}/search_results.json"
 
-        blob_name = self.write_json(search_key, places)
-        print(f"[ingestion func] Wrote search results to blob: {blob_name} with {len(places) if places else 0} places")
+        blob_name = self.write_json(search_key, {"query": query, "results": places})
+        print(f"[ingestion func] Wrote search results to blob: {blob_name} and {search_key} with {len(places) if places else 0} places")
 
         # Loop each place to get reviews
         for idx, place in enumerate(places, 1):
@@ -78,13 +84,13 @@ class IngestionFunctions:
             self.write_json(meta_blob, place)
 
             # Now get reviews in chunks
-            reviews = self.serp.fetch_reviews(place_id=pid, limit=40)
-            blob_paths = []
+            reviews = self.serp.fetch_reviews(place_id=pid, max_reviews=max_reviews)
+            blob_paths = [meta_blob]
             chunk = 200
 
             for i in range(0, len(reviews), chunk):
                 part = reviews[i:i+chunk]
-                path = base + f"reviews_{i//chunk + 1}_{place}.json"
+                path = base + f"reviews-{i//chunk + 1:04d}.json"
                 self.write_json(path, part)
                 blob_paths.append(path)
 
