@@ -11,45 +11,27 @@ from azure.servicebus import ServiceBusClient, ServiceBusMessage
 # Get helpers
 from app.helpers.blob_service import BlobServiceHelper
 from app.helpers.service_bus import ServiceBusHelper
+from app.helpers.serp_client import SerpApiClient
+from app.ingestion_func import IngestionFunctions
 
 def main():
     print("[ingestion] Ingestion app is running")
     
-    # Inputs for the stub
-    place_id = os.getenv("PLACE_ID", "demo-place")
+    mode = os.getenv("MODE", "search_and_fetch")
+    if mode != "search_and_fetch":
+        print(f"[ingestion] unsupported mode {mode}", file=sys.stderr)
+        sys.exit(2)
 
-    # credential = DefaultAzureCredential()
-    credential = ManagedIdentityCredential(client_id=os.getenv("AZURE_CLIENT_ID")) if os.getenv("AZURE_CLIENT_ID") else DefaultAzureCredential()
-
-    # Blob Service Operations
-    blob_helper = BlobServiceHelper(
-        storage_account_url="BLOB_ACCOUNT",
-        container_name="BLOB_CONTAINER"
-    )
-    container_client = blob_helper.build_blob_client(credential)
-    blob_name = blob_helper.write_hello_blob_test(container_client, place_id)
-
-    # Service Bus Operations
-    service_bus_helper = ServiceBusHelper(
-        service_bus_namespace="SB_NAMESPACE",
-        queue_name="SB_QUEUE_PROCESS"
-    )
-    sb_client, sb_sender = service_bus_helper.build_service_bus_sender(credential)
-    
-    try:
-
-        message_payload = service_bus_helper.send_process_blob_message(
-            sb_client,
-            sb_sender,
-            place_id,
-            blob_name
-        )
-        print(f"[ingestion] Sent Service Bus message payload: {json.dumps(message_payload)}")
-    finally:
-        service_bus_helper.close_service_bus_client(sb_client)
-
-    print("[ingestion] Ingestion app completed successfully")
-
+    msg = {
+        "query": os.getenv("QUERY", "coffee"),
+        "limit": int(os.getenv("LIMIT", "10")),
+        "max_reviews": int(os.getenv("MAX_REVIEWS", "120")),
+        "lang": os.getenv("HL", "en"),
+        "country": os.getenv("GL", "ca"),
+        "ll": os.getenv("LL")  # optional
+    }
+    ingestion_functions = IngestionFunctions(hl=msg["lang"], gl=msg["country"])
+    ingestion_functions.run_search_and_fetch(msg)
 
 if __name__ == "__main__":
     main()
