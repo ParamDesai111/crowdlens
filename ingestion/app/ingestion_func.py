@@ -28,7 +28,7 @@ class IngestionFunctions:
             queue_name="SB_QUEUE_PROCESS"
         )
         
-        api_key = os.getenv("SERP_API_KEY", "")
+        api_key = os.getenv("SERPAPI_KEY", "")
         if not api_key:
             print("[ingestion func] Missing SERP_API_KEY environment variable", file=sys.stderr)
             raise ValueError("Missing SERP_API_KEY environment variable")
