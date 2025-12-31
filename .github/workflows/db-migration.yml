@@ -30,7 +30,9 @@ jobs:
       
       # figure out the directory we are in
       - name: Set working directory
-        run: echo "WORKING_DIR=$(pwd)" >> $GITHUB_ENV
+        run: |
+          pwd
+          ls -la
 
       - name: Apply schema
         uses: docker://postgres:16
