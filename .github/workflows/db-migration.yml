@@ -46,6 +46,6 @@ jobs:
                 if psql \"$POSTGRES_URL\" -c 'select 1' >/dev/null 2>&1; then break; fi
                 sleep 3
               done
-              psql \"$POSTGRES_URL\" -v ON_ERROR_STOP=1 -f ml_worker/sql/001_init.sql
+              psql \"$POSTGRES_URL\" -v ON_ERROR_STOP=1 -f ml_worker/sql/0001_init.sql
               echo 'Schema applied'
             "
