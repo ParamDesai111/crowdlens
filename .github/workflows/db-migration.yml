@@ -2,30 +2,44 @@ name: db-migrate
 on:
   workflow_dispatch:
 
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AZ_RG: rg-crowdlens-dev
+  PG_SERVER: pg-crowdlens-dev
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
-      - name: Create DB if missing and apply schema
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create DB if missing
+        run: |
+          az postgres flexible-server db create \
+            -g "$AZ_RG" -s "$PG_SERVER" -d crowdlens || true
+
+      - name: Apply schema
         uses: docker://postgres:16
         env:
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}   # points to crowdlens with sslmode=require
+          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
         with:
           args: >
             bash -lc "
               set -euo pipefail
-              # derive a URL that points to the 'postgres' database
-              URL_POSTGRES=\"${POSTGRES_URL/crowdlens?/postgres?}\"
-
-              # create db if not exists
-              EXISTS=$(psql \"$URL_POSTGRES\" -tAc \"SELECT 1 FROM pg_database WHERE datname='crowdlens'\")
-              if [ \"$EXISTS\" != \"1\" ]; then
-                psql \"$URL_POSTGRES\" -c \"CREATE DATABASE crowdlens OWNER pgadmin\"
-              fi
-
-              # apply schema to crowdlens
+              for i in {1..20}; do
+                if psql \"$POSTGRES_URL\" -c 'select 1' >/dev/null 2>&1; then break; fi
+                sleep 3
+              done
               psql \"$POSTGRES_URL\" -v ON_ERROR_STOP=1 -f ml_worker/sql/001_init.sql
               echo 'Schema applied'
             "
