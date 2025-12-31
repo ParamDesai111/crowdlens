@@ -23,9 +23,9 @@ def main():
         sys.exit(2)
 
     msg = {
-        "query": os.getenv("QUERY", "ramen"),
-        "limit": int(os.getenv("LIMIT", "10")),
-        "max_reviews": int(os.getenv("MAX_REVIEWS", "40")),
+        "query": os.getenv("QUERY"),
+        "limit": int(os.getenv("LIMIT")),
+        "max_reviews": int(os.getenv("MAX_REVIEWS")),
         "lang": os.getenv("HL", "en"),
         "country": os.getenv("GL", "ca"),
         "ll": os.getenv("LL", "@45.37704849243164,-75.6755599975586,14z")  # optional

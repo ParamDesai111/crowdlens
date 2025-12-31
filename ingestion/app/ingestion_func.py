@@ -72,8 +72,7 @@ class IngestionFunctions:
         try:
             for idx, place in enumerate(places, 1):
                 pid = place.get("place_id")
-                name = place.get("name") or "unknown"
-                print(f"[ingestion func] Processing place {idx}/{len(places)}: {name} (place_id: {pid})")
+                print(f"[ingestion func] Processing place {idx}/{len(places)} (place_id: {pid})")
                 if not pid:
                     print("[ingestion func] Skipping place without place_id")
                     continue
@@ -83,7 +82,7 @@ class IngestionFunctions:
                 self.write_json(meta_blob, place)
 
                 reviews = self.serp.fetch_reviews(place_id=pid, max_reviews=max_reviews)
-                print(f"[ingestion func] Fetched {len(reviews)} reviews for place_id: {pid} and name: {name}")
+                print(f"[ingestion func] Fetched {len(reviews)} reviews for place_id: {pid}")
 
                 blob_paths = [meta_blob]
                 chunk = 200
