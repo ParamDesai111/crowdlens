@@ -1,0 +1,16 @@
+name: db-migrate
+on:
+  workflow_dispatch:
+
+jobs:
+  migrate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply schema
+        uses: docker://postgres:16
+        with:
+          args: >
+            psql "${{ secrets.POSTGRES_URL }}"
+            -v ON_ERROR_STOP=1
+            -f ml_worker/sql/001_init.sql
