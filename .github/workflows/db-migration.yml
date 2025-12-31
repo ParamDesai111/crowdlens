@@ -2,15 +2,29 @@ name: db-migrate
 on:
   workflow_dispatch:
 
+env:
+  AZ_RG: rg-crowdlens-dev
+  PG_SERVER: pg-crowdlens-dev
+
 jobs:
   migrate:
     runs-on: ubuntu-latest
-
     steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+      - uses: actions/checkout@v4
 
-      - name: Run DDL with postgres client
+      - name: Azure login
+        uses: azure/login@v2
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Create DB if missing
+        run: |
+          az postgres flexible-server db create \
+            -g "$AZ_RG" -s "$PG_SERVER" -d crowdlens || true
+
+      - name: Apply schema
         uses: docker://postgres:16
         env:
           POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
@@ -18,26 +32,10 @@ jobs:
           args: >
             bash -lc "
               set -euo pipefail
-              echo 'Waiting for DB...'
               for i in {1..20}; do
-                if psql \"$POSTGRES_URL\" -c 'select 1' >/dev/null 2>&1; then
-                  break
-                fi
+                if psql \"$POSTGRES_URL\" -c 'select 1' >/dev/null 2>&1; then break; fi
                 sleep 3
               done
-              echo 'Applying schema'
               psql \"$POSTGRES_URL\" -v ON_ERROR_STOP=1 -f ml_worker/sql/001_init.sql
               echo 'Schema applied'
-            "
-      - name: Verify objects
-        if: always()
-        uses: docker://postgres:16
-        env:
-          POSTGRES_URL: ${{ secrets.POSTGRES_URL }}
-        with:
-          args: >
-            bash -lc "
-              psql \"$POSTGRES_URL\" -c '\dn'
-              psql \"$POSTGRES_URL\" -c '\dt raw.*'
-              psql \"$POSTGRES_URL\" -c '\dt core.*'
             "
